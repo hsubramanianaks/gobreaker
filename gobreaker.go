@@ -244,6 +244,25 @@ func (cb *CircuitBreaker) Execute(req func() (interface{}, error)) (interface{},
 	return result, err
 }
 
+func ExecuteWithGenerics[T any](cb *CircuitBreaker, req func() (T, error)) (T, error) {
+	generation, _ := cb.beforeRequest()
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	defer func() {
+		e := recover()
+		if e != nil {
+			cb.afterRequest(generation, false)
+			panic(e)
+		}
+	}()
+
+	result, err := req()
+	cb.afterRequest(generation, cb.isSuccessful(err))
+	return result, err
+}
+
 // Name returns the name of the TwoStepCircuitBreaker.
 func (tscb *TwoStepCircuitBreaker) Name() string {
 	return tscb.cb.Name()

@@ -9,6 +9,10 @@ import (
 	"github.com/sony/gobreaker"
 )
 
+type Response struct {
+	Body []byte
+}
+
 var cb *gobreaker.CircuitBreaker
 
 func init() {
@@ -20,6 +24,30 @@ func init() {
 	}
 
 	cb = gobreaker.NewCircuitBreaker(st)
+}
+
+// Get wraps http.Get in CircuitBreaker.
+func GetV2(url string) ([]byte, error) {
+	body, err := gobreaker.ExecuteWithGenerics(cb, func() (Response, error) {
+
+		resp, err := http.Get(url)
+		if err != nil {
+			return Response{}, err
+		}
+
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return Response{}, err
+		}
+		res := Response{Body: body}
+		return res, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return body.Body, nil
 }
 
 // Get wraps http.Get in CircuitBreaker.
@@ -47,6 +75,13 @@ func Get(url string) ([]byte, error) {
 
 func main() {
 	body, err := Get("http://www.google.com/robots.txt")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(string(body))
+
+	body, err = GetV2("http://www.google.com/robots.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
